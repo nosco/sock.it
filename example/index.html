@@ -17,7 +17,10 @@
         console.log(this.readyState);
         console.log(arguments);
         console.log('re-opening');
-        sockit.open();
+        setTimeout(function() {
+          sockit.open();
+          console.log('new open');
+        }, 5000);
       };
       sockit.onerror = function() {
         console.log('FAR OUT: erred');
