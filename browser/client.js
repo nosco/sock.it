@@ -1,162 +1,222 @@
-var SockItPoll = function() {
-  if(!(this instanceof SockItPoll)) return new SockItPoll();
+(function() {
+
+if(!Function.prototype.bind) {
+  Function.prototype.bind = function(oThis) {
+    if(typeof this !== "function") {
+      // closest thing possible to the ECMAScript 5 internal IsCallable function
+      throw new TypeError("Function.prototype.bind - what is trying to be bound is not callable");
+    }
+
+    var aArgs = Array.prototype.slice.call(arguments, 1);
+    var fToBind = this;
+    var fNOP = function () {};
+    var fBound = function () {
+      return fToBind.apply(this instanceof fNOP && oThis ? this : oThis,
+                           aArgs.concat(Array.prototype.slice.call(arguments)));
+    };
+
+    fNOP.prototype = this.prototype;
+    fBound.prototype = new fNOP();
+
+    return fBound;
+  };
+}
+var SockItXHR = function() {
+  if(!(this instanceof SockItXHR)) return new SockItXHR();
+
+  this.httpRequest                    = this.getHttpRequestObject();
+  this.httpRequest.onreadystatechange = this._readystatechange.bind(this);
+
+  this.readyState                     = this.httpRequest.readyState;
+
+  this.UNSENT                         = 0; // open() has not been called yet.
+  this.OPENED                         = 1; // send() has not been called yet.
+  this.HEADERS_RECEIVED               = 2; // send() has been called, and headers and status are available.
+  this.LOADING                        = 3; // Downloading; responseText holds partial data.
+  this.DONE                           = 4; // The operation is complete.
 };
 
+SockItXHR.prototype.triggerEvent = function(eventName) {
+  if(this['on'+eventName]) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    this['on'+eventName].apply(this, args);
+  }
+};
+
+SockItXHR.prototype.getHttpRequestObject = function() {
+  if(window.XMLHttpRequest) { // Mozilla, Safari, ...
+    httpRequest = new XMLHttpRequest();
+  } else if(window.ActiveXObject) { // IE
+    try { httpRequest = new ActiveXObject("Msxml2.XMLHTTP");
+    } catch (e) {
+      try { httpRequest = new ActiveXObject("Microsoft.XMLHTTP"); }
+      catch (e) {}
+    }
+  }
+
+  if(!httpRequest) {
+    throw new Error('Unable to create XLM HTTP request');
+    return false;
+  }
+
+  return httpRequest;
+};
+
+SockItXHR.prototype.onreadystatechange = null;
+SockItXHR.prototype.ondone             = null;
+SockItXHR.prototype.onopen             = null;
+SockItXHR.prototype.onheadersreceived  = null;
+SockItXHR.prototype.onloading          = null;
+SockItXHR.prototype.ondone             = null;
+SockItXHR.prototype.onerror            = null;
+SockItXHR.prototype.onclose            = null;
+SockItXHR.prototype.onmessage          = null;
+
+// Going to use this as the event handler - don't want to deal with all kinds
+// of event handling mechanisms used in different browsers
+SockItXHR.prototype._readystatechange = function() {
+  if(this.httpRequest.readyState === this.OPENED) {
+    // Actually connecting as the send hasn't been called yet
+    this.triggerEvent('open');
+
+  } else if(this.httpRequest.readyState === this.HEADERS_RECEIVED) {
+    // The poll stops already at opened
+  } else if(this.httpRequest.readyState === this.LOADING) {
+    // The poll stops already at opened
+  } else if(this.httpRequest.readyState === this.DONE) {
+
+    if(this.httpRequest.status === 200) {
+      this.triggerEvent('message', this.httpRequest.responseText);
+      this.triggerEvent('done', this.httpRequest.responseText);
+
+    } else {
+      // This is probably a crash
+      var err = new Error('Connection failed with HTTP code: '+this.httpRequest.status);
+      this.triggerEvent('error', err);
+      this.triggerEvent('close');
+    }
+  }
+
+  this.triggerEvent('readystatechange', arguments);
+};
+
+SockItXHR.prototype.post = function(url, post) {
+  this.httpRequest.open('POST', url, true);
+  this.httpRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  this.httpRequest.send(post);
+};
+
+SockItXHR.prototype.get = function(url) {
+  this.httpRequest.open('GET', url, true);
+  this.httpRequest.send();
+};
+var SockItPoll = function(url) {
+  if(!(this instanceof SockItPoll)) return new SockItPoll();
+
+  this.CONNECTING = 0;           // const readyState state
+  this.OPEN       = 1;           // const readyState state
+  this.CLOSING    = 2;           // const readyState state
+  this.CLOSED     = 3;           // const readyState state
+  this.readyState = this.CLOSED; // readonly
+
+  this.url        = url.replace(/^ws/i, 'http');
+
+  this.connId     = null;
+
+  this.startPoll();
+};
+
+SockItPoll.prototype.triggerEvent = function(eventName) {
+  if(this['on'+eventName]) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    this['on'+eventName].apply(this, args);
+  }
+};
+
+SockItPoll.prototype.onopen    = null;
+SockItPoll.prototype.onclose   = null;
+SockItPoll.prototype.onmessage = null;
+SockItPoll.prototype.onerror   = null;
 
 // ONLY CALL THE "FINAL" ONCLOSE, WHEN IT IS NOT A "PING/PONG"-ISH RECONNECT
 
+SockItPoll.prototype.startPoll = function() {
+  this.readyState = this.CLOSED;
 
-SockItPoll.prototype.openPoll = function() {
-  console.log('open poll');
+  var url = this.url + 'poll-start';
+  var xhr = new SockItXHR();
 
-  if(!this.initialConnectionDone || !this.connId) {
-    this._startPoll();
+  xhr.ondone = function(data) {
+    this.readyState = this.CONNECTING; // Start reconnecting
 
-  } else {
-    this._openPoll();
-  }
+    if(data && data.length > 0) {
+      this.connId = data;
+      this.openPoll();
+    } else {
+      throw new Error('No connection received');
+    }
+  }.bind(this);
 
-  // this.connection = new WebSocket(connectionUrl);
-  // this.connection.onopen = this._onOpen.bind(this);
-  // this.connection.onclose = this._onClose.bind(this);
-  // this.connection.onerror = this._onError.bind(this);
-  // this.connection.onmessage = this._onMessage.bind(this);
+  xhr.onerror = function() {
+    this.readyState = this.CLOSED;
+    // @todo figure out what is actually send along and what to pass along...
+    this.triggerEvent('error', {}, arguments);
+    this.triggerEvent('close', {}, arguments);
+  }.bind(this);
+
+  xhr.post(url);
 };
 
-SockItPoll.prototype._startPoll = function() {
-  this.initialConnectionDone = false;
-  this.connId = null;
+SockItPoll.prototype.openPoll = function() {
+  // @todo figure out when a connection is properly closed
+  //   Maybe we should just decide, that a connection is properly closed, when
+  //   the server sends a close statement?
+
+  // We need to NOT use jQuery, if we are to make sure, the connection is really
+  // open, when we call the onopen!..
+
+  // Check what kind of data is being send by websockets for each event handler
+  // and try to match it...
+  // UPDATE: at least make sure, the first argument is an "event" object
 
   this.readyState = this.CONNECTING;
 
-  var url = this.url.replace(/^ws/i, 'http') + 'poll-start';
-  // Use get?
-  // How to discover a close on this one, is it just done???
-  $.post(url, {}, null,  "json")
-  .done(function(data, status) {
-    if(data.connId) {
-      this.connId = data.connId;
-      this.initialConnectionDone = true;
-      this._openPoll();
-    }
-  }.bind(this))
+  var url = this.url + 'poll';
+  var xhr = new SockItXHR();
 
-  .fail(function() {
-    console.log('_startPoll req fail');
-    console.log(arguments);
-  }.bind(this))
+  xhr.onopen = function() {
+    this.readyState = this.OPEN; // Start reconnecting
+    this.triggerEvent('open');
+  }.bind(this);
 
-  // .always(function() {
-  //   console.log('poll req always');
-  //   console.log(arguments);
-  // }.bind(this));
-};
+  xhr.ondone = function(data) {
+    this.readyState = this.CONNECTING; // Start reconnecting
+    this.triggerEvent('message', {}, data);
+    this.openPoll();
+  }.bind(this);
 
-SockItPoll.prototype._openPoll = function() {
-  var url = this.url.replace(/^ws/i, 'http') + 'poll';
-  // Use get?
-  // How to discover a close on this one, is it just done???
+  xhr.onerror = function() {
+    this.readyState = this.CLOSED;
+    // @todo figure out what is actually send along and what to pass along...
+    this.triggerEvent('error', arguments);
+    this.triggerEvent('close', arguments);
+  }.bind(this);
 
-  this.conn = $.post(url, {}, null,  "json")
-  .done(function(data, status) {
-    // This is when data comes it, re-open, right?
-    console.log(arguments);
-    this.readyState = this.CONNECTING;
-    this._openPoll();
-  }.bind(this))
-
-  // .always(function() {
-  //   console.log('_openPoll always');
-  //   console.log(arguments);
-  // }.bind(this))
-
-  .fail(function() {
-    console.log('_openPoll req fail');
-    console.log(arguments);
-  }.bind(this))
-
-  .progress(function() {
-    console.log('_openPoll progress');
-    console.log(arguments);
-  }.bind(this))
-
-
-  this.readyState = this.OPEN;
-  // this.send('HEY YO');
-
-
-// console.log(this.conn);
-
-//   setInterval(function() { console.log('readyState:'); console.log(this.conn.readyState); }.bind(this), 1000);
-//   setInterval(function() { console.log('state:'); console.log(this.conn.state()); }.bind(this), 1000);
-//   setInterval(function() { console.log('statusCode:'); console.log(this.conn.statusCode()); }.bind(this), 1000);
-
-// abort
-// progress
-// readyState
-// state
-// statusCode
-
+  this.connection = xhr.post(url);
 };
 
 SockItPoll.prototype.send = function(msg) {
-  var url = this.url.replace(/^ws/i, 'http') + 'poll-msg';
-  $.post(url, { msg: msg }, null,  "json");
+  var url = this.url + 'poll-msg';
+
+  var xhr = new SockItXHR();
+
+  xhr.post(url, msg);
 };
 
-
-SockItPoll.prototype._onOpen = function(e) {
-  console.log('on open');
-  this.initialConnectionDone = true;
-};
-
-SockItPoll.prototype._onClose = function(e) {
-  console.log('on close');
-  if(!this.initialConnectionDone && this.transportType === 'websocket') {
-    // @todo this should only happen, if websocket has never opened
-    // otherwise it should just reconnect, as the server could have been restarted
-    console.log('retry with polling');
-    this.transportType = 'poll';
-    this.openPoll();
-  }
-};
-
-SockItPoll.prototype._onError = function(e) {
-  console.log('on error');
-  console.log(arguments);
-};
-
-SockItPoll.prototype._onMessage = function(e) {
-  console.log('on message');
-  var msg = e.data;
-  console.log(msg);
-  // this.send('Thank you!');
-};
-
-
-SockItPoll.prototype.close = function() {
-};
-
-// SockItPoll.prototype.send = function(data) {
-//   this.connection.send(data);
-// };
-
-SockItPoll.prototype._sendString = function() {
-};
-
-SockItPoll.prototype._sendBlob = function() {
-};
-
-SockItPoll.prototype._sendArrayBuffer = function() {
-};
-
-SockItPoll.prototype._sendArrayBufferView = function() {
-};/* Things to consider
- * - Do we want to expect pings from the server? UPDATE: Yes! Websocket standard thingy
- *     The clients websocket will take care of responses to pings
- *     Should this be done for polling? It wouldn't make sense, as the connection
- *     would have to be shut down, unless it's possible to go back to the very
- *     first version I did years and years ago - streaming polling
+// SockItPoll.prototype._sendBlob = function() { };
+// SockItPoll.prototype._sendArrayBuffer = function() { };
+// SockItPoll.prototype._sendArrayBufferView = function() { };
+/* Things to consider
  * - How to detect a non correctly closed connection AND recover from it?
  *
  * Things to code by
@@ -171,13 +231,7 @@ SockItPoll.prototype._sendArrayBufferView = function() {
  * - It should not be necessary to send results through redis pub/sub
  *     Instead the request goes through pub/sub and is catched by 1 process,
  *     which finally sends the answer directly
- *
- * Polling
- * - Keep a connection open
- * - Send a request with a message id
- * - When a message is received on the client, close the long-poll connection
- *     and open a new
- *
+ * *
  * Possible pitfalls
  * - If long-polling in IE < 10 + Chrome < 13 is buggy - try 2kb "padding"
  * - Lots of SO_KEEPALIVE of 30 - 45 secs, so use a heartbeat of <= 30
@@ -185,8 +239,6 @@ SockItPoll.prototype._sendArrayBufferView = function() {
  *     when it experiences an uncontrolled connection close?
  *     Pitfall: Is it possible the connection could disappear silently?
  */
-
-/* MAKE SURE WE CAN FETCH JQUERY, IF IT IS NOT ALREADY AVAILABLE !!! */
 
 /*
   WS API
@@ -218,11 +270,9 @@ SockItPoll.prototype._sendArrayBufferView = function() {
  */
 
 
-/* TODO:
- * - Figure how to take over /sock.it/* on both standard http and express
- * - How to "store" clients
- * - How to utilize redis - probably subscribe to "domain room" and "domain user"
- * - Don't start a redis client pr user - do it pr process
+/* @TODO
+ * - create a close function
+ * - create a send function
  */
 
 var SockIt = function(settings) {
@@ -234,12 +284,6 @@ var SockIt = function(settings) {
   settings                   = settings     || {};
   this.url                   = settings.url || '/sock.it/'; // readonly - should be a full path or break
 
-  // // Is this needed? (at least for now?)
-  // this.protocols      = protocols || [];
-  // if(typeof this.protocols === 'string') {
-  //   this.protocols    = [this.protocols]; // Right?
-  // }
-
   this.CONNECTING            = 0;           // const readyState state
   this.OPEN                  = 1;           // const readyState state
   this.CLOSING               = 2;           // const readyState state
@@ -247,19 +291,20 @@ var SockIt = function(settings) {
   this.readyState            = this.CLOSED; // readonly
 
   this.bufferedAmount        = 0;           // readonly
-  this.extensions            = null;        // readonly
-  this.protocol              = null;        // readonly - should be one of protocols or empty
-  this.binaryType            = null;        // No binaries for now
+  this.extensions            = "";          // readonly
+  this.protocol              = "";          // readonly - should be one of protocols or empty
+  this.binaryType            = "blob";      // No binaries for now
 
   this.setupConf();
   this.initiateConnection();
 };
 
-// UNDER CONSIDERATION:
-// for(var i in SimpleEvents.prototype) {
-//   SockIt.prototype[i] = SimpleEvents.prototype[i];
-// }
-
+SockIt.prototype.triggerEvent = function(eventName) {
+  if(this['on'+eventName]) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    this['on'+eventName].apply(this, args);
+  }
+};
 
 // @todo This should be implemented in the poll code!
 // Check: http://dev.w3.org/html5/websockets/#dom-websocket-close
@@ -267,13 +312,10 @@ var SockIt = function(settings) {
 // //If the method's first argument is present but is neither an integer equal to 1000 nor an integer in the range 3000 to 4999, throw an InvalidAccessError exception and abort these steps.
 // };
 
-
-// Though the basic philisophy is to NOT add to the WebSocket, it should be
-// considered if "real" events (emit) is fair to add?
-SockIt.prototype.onopen = function() {};
-SockIt.prototype.onclose = function() {};
-SockIt.prototype.onmessage = function() {};
-SockIt.prototype.onerror = function() {};
+SockIt.prototype.onopen    = null;
+SockIt.prototype.onclose   = null;
+SockIt.prototype.onmessage = null;
+SockIt.prototype.onerror   = null;
 
 SockIt.prototype.setupConf = function() {
   this.transportType = 'websocket'; // websocket or poll
@@ -299,18 +341,13 @@ SockIt.prototype.setupConf = function() {
   }
 };
 
-
+SockIt.prototype.open =
 SockIt.prototype.initiateConnection = function() {
-  // If connection type is to be a websocket, then try that, but throw back
-  // an error if that doesn't work, so the connection can be set poll
-  // ... or something like that...
   if(this.transportType === 'websocket') {
-    // Open a websocket connection (transport)
     this.openWebSocketConnection(this.url);
-  } else if(this.transportType === 'poll') {
-    // Open a poll connection (transport)
-    this.openPollConnection(this.url);
 
+  } else if(this.transportType === 'poll') {
+    this.openPollConnection(this.url);
   }
 };
 
@@ -328,41 +365,38 @@ SockIt.prototype.openPollConnection = function() {
   this.setupTransportReferences();
 };
 
+SockIt.prototype.send = function(msg) {
+  this.transport.send(msg);
+};
+
 SockIt.prototype.setupTransportReferences = function() {
   this.transport.onopen = function() {
     this.initialConnectionDone = true;
     this.readyState = this.transport.readyState;
-    this.onopen.apply(this, arguments);
+    this.triggerEvent('open', arguments);
   }.bind(this);
-
 
   this.transport.onmessage = function() {
     this.readyState = this.transport.readyState;
-    this.onmessage.apply(this, arguments);
+    this.triggerEvent('message', arguments);
   }.bind(this);
 
   this.transport.onclose = function() {
-    this.readyState = this.transport.readyState;
-    this.onclose.apply(this, arguments);
+    if(!this.initialConnectionDone && this.transportType === 'websocket') {
+      this.openPollConnection();
+
+    } else {
+      this.readyState = this.transport.readyState;
+      this.triggerEvent('close', arguments);
+    }
   }.bind(this);
 
   this.transport.onerror = function() {
     this.readyState = this.transport.readyState;
-    this.onerror.apply(this, arguments);
+    this.triggerEvent('error', arguments);
   }.bind(this);
 };
 
-SockIt.prototype._reconnect = function() {
-  if(!this.initialConnectionDone && this.transportType === 'websocket') {
-    this.openPollConnection();
-
-  } else if(this.transportType === 'websocket') {
-    this.openWebSocketConnection();
-    // RECONNECT WITH PULL BACK TIMING - IF ALLOWED
-
-  } else if(this.transportType === 'poll') {
-    // RECONNECT WITH PULL BACK TIMING - IF ALLOWED
-    this.openPollConnection();
-  }
-};
+window.SockIt = SockIt;
+})();
 
