@@ -41,8 +41,8 @@
     "ws": "^0.4.32"
   },
   "scripts": {
-    "prestart": "cat lib/browser/poll.js lib/browser/sockit.js > browser/client.js;",
-    "start": "node server.js"
+    "prestart": "sh compile_client.sh",
+    "start": "node example/server.js"
   },
   "repository": {
     "type": "git",
