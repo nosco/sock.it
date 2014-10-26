@@ -1,27 +1,31 @@
 <html>
   <head>
-    <script type="text/javascript" src="/sock.it/jquery.min.js"></script>
     <script type="text/javascript" src="/sock.it/client.js"></script>
     <script type="text/javascript">
       // var sockit = new SockIt('/sock.it/');
       var sockit = new SockIt();
       sockit.onopen = function() {
-        console.log('opened');
+        console.log('FAR OUT: opened');
         console.log(this.readyState);
         console.log(arguments);
+
+        sockit.send('a test');
+
       };
       sockit.onclose = function() {
-        console.log('closed');
+        console.log('FAR OUT: closed');
         console.log(this.readyState);
         console.log(arguments);
+        console.log('re-opening');
+        sockit.open();
       };
       sockit.onerror = function() {
-        console.log('erred');
+        console.log('FAR OUT: erred');
         console.log(this.readyState);
         console.log(arguments);
       };
       sockit.onmessage = function() {
-        console.log('message');
+        console.log('FAR OUT: message');
         console.log(this.readyState);
         console.log(arguments);
       };
