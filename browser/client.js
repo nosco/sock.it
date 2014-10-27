@@ -101,12 +101,14 @@ SockItXHR.prototype._readystatechange = function() {
 };
 
 SockItXHR.prototype.post = function(url, post) {
+  this.url = url;
   this.httpRequest.open('POST', url, true);
   this.httpRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
   this.httpRequest.send(post);
 };
 
 SockItXHR.prototype.get = function(url) {
+  this.url = url;
   this.httpRequest.open('GET', url, true);
   this.httpRequest.send();
 };
@@ -191,7 +193,7 @@ SockItPoll.prototype.openPoll = function() {
 
   xhr.ondone = function(data) {
     this.readyState = this.CONNECTING; // Start reconnecting
-    this.triggerEvent('message', {}, data);
+    this.triggerEvent('message', { type: 'message', data: data });
     this.openPoll();
   }.bind(this);
 
@@ -206,8 +208,9 @@ SockItPoll.prototype.openPoll = function() {
 };
 
 SockItPoll.prototype.send = function(msg) {
-  var url = this.url + 'poll-msg';
+  this.readyState = this.CONNECTING;
 
+  var url = this.url + 'poll-msg';
   var xhr = new SockItXHR();
 
   xhr.post(url, msg);
@@ -365,6 +368,7 @@ SockIt.prototype.openPollConnection = function() {
   this.setupTransportReferences();
 };
 
+// @todo this could be prettier
 SockIt.prototype.send = function(msg) {
   this.transport.send(msg);
 };
@@ -377,8 +381,11 @@ SockIt.prototype.setupTransportReferences = function() {
   }.bind(this);
 
   this.transport.onmessage = function() {
+    var args = Array.prototype.slice.call(arguments);
+    args.unshift('message');
+
     this.readyState = this.transport.readyState;
-    this.triggerEvent('message', arguments);
+    this.triggerEvent.apply(this, args);
   }.bind(this);
 
   this.transport.onclose = function() {
