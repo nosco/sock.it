@@ -28,12 +28,13 @@ var SockItXHR = function() {
   this.httpRequest.onreadystatechange = this._readystatechange.bind(this);
 
   this.readyState                     = this.httpRequest.readyState;
+  this.ttl                            = 25; // Most problems should start at 30 sec earliest
 
-  this.UNSENT                         = 0; // open() has not been called yet.
-  this.OPENED                         = 1; // send() has not been called yet.
-  this.HEADERS_RECEIVED               = 2; // send() has been called, and headers and status are available.
-  this.LOADING                        = 3; // Downloading; responseText holds partial data.
-  this.DONE                           = 4; // The operation is complete.
+  this.UNSENT                         = 0;  // open() has not been called yet.
+  this.OPENED                         = 1;  // send() has not been called yet.
+  this.HEADERS_RECEIVED               = 2;  // send() has been called, and headers and status are available.
+  this.LOADING                        = 3;  // Downloading; responseText holds partial data.
+  this.DONE                           = 4;  // The operation is complete.
 };
 
 SockItXHR.prototype.triggerEvent = function(eventName) {
@@ -78,6 +79,10 @@ SockItXHR.prototype._readystatechange = function() {
   if(this.httpRequest.readyState === this.OPENED) {
     // Actually connecting as the send hasn't been called yet
     this.triggerEvent('open');
+
+     this.httpRequest.killTimer = setTimeout(function() {
+      this.httpRequest.abort();
+    }.bind(this), (this.ttl * 1000));
 
   } else if(this.httpRequest.readyState === this.HEADERS_RECEIVED) {
     // The poll stops already at opened
@@ -149,10 +154,12 @@ SockItPoll.prototype.startPoll = function() {
   var xhr = new SockItXHR();
 
   xhr.ondone = function(data) {
+    var connId = (data.substr(0, 7) === 'connId=') ? data.substr(7) : null;
+
     this.readyState = this.CONNECTING; // Start reconnecting
 
     if(data && data.length > 0) {
-      this.connId = data;
+      this.connId = connId;
       this.openPoll();
     } else {
       throw new Error('No connection received');
@@ -170,6 +177,8 @@ SockItPoll.prototype.startPoll = function() {
 };
 
 SockItPoll.prototype.openPoll = function() {
+    // console.log('openPoll');
+
   // @todo figure out when a connection is properly closed
   //   Maybe we should just decide, that a connection is properly closed, when
   //   the server sends a close statement?
@@ -187,26 +196,33 @@ SockItPoll.prototype.openPoll = function() {
   var xhr = new SockItXHR();
 
   xhr.onopen = function() {
+    // console.log('TRIGGER OPEN');
     this.readyState = this.OPEN; // Start reconnecting
     this.triggerEvent('open');
   }.bind(this);
 
-  xhr.ondone = function(data) {
+  xhr.ondone = function(strDataArray) {
     this.readyState = this.CONNECTING; // Start reconnecting
-    this.triggerEvent('message', { type: 'message', data: data });
+
+    if(strDataArray.substr(0, 7) === 'connId=') {
+      // This is a reconnect message
+
+    } else {
+      // console.log('TRIGGER MESSAGE');
+      var arrData = JSON.parse(strDataArray);
+      for(var i in arrData) {
+        this.triggerEvent('message', { type: 'message', data: arrData[i] });
+      }
+    }
+
     this.openPoll();
   }.bind(this);
 
   xhr.onclose = function() {
+    // console.log('TRY TO REOPEN');
     this.readyState = this.CLOSED;
-    this.triggerEvent('close', arguments);
-  }.bind(this);
-
-  xhr.onerror = function() {
-    this.readyState = this.CLOSED;
-    // @todo figure out what is actually send along and what to pass along...
-    this.triggerEvent('error', arguments);
-    this.triggerEvent('close', arguments);
+    this.openPoll();
+    // this.triggerEvent('close', arguments);
   }.bind(this);
 
   this.connection = xhr.post(url);
@@ -278,10 +294,7 @@ SockItPoll.prototype.send = function(msg) {
  */
 
 
-/* @TODO
- * - create a close function
- * - create a send function
- */
+/* @TODO WE NEED TO MAKE SURE, THAT JSON IS AVAILABLE! */
 
 var SockIt = function(settings) {
   if(!(this instanceof SockIt)) return new SockIt(url, protocols);
@@ -289,8 +302,8 @@ var SockIt = function(settings) {
   this.transport             = null;
   this.initialConnectionDone = false;
 
-  settings                   = settings     || {};
-  this.url                   = settings.url || '/sock.it/'; // readonly - should be a full path or break
+  this.settings              = settings          || {};
+  this.url                   = this.settings.url || '/sock.it/'; // readonly - should be a full path or break
 
   this.CONNECTING            = 0;           // const readyState state
   this.OPEN                  = 1;           // const readyState state
@@ -401,6 +414,7 @@ SockIt.prototype.setupTransportReferences = function() {
       this.readyState = this.transport.readyState;
       this.triggerEvent('close', arguments);
     }
+
   }.bind(this);
 
   this.transport.onerror = function() {
