@@ -89,7 +89,6 @@ SockItXHR.prototype._readystatechange = function() {
   } else if(this.httpRequest.readyState === this.LOADING) {
     // The poll stops already at opened
   } else if(this.httpRequest.readyState === this.DONE) {
-
     if(this.httpRequest.status === 200) {
       this.triggerEvent('message', this.httpRequest.responseText);
       this.triggerEvent('done', this.httpRequest.responseText);
@@ -128,8 +127,6 @@ var SockItPoll = function(url) {
 
   this.url        = url.replace(/^ws/i, 'http');
 
-  this.connId     = null;
-
   this.startPoll();
 };
 
@@ -154,12 +151,9 @@ SockItPoll.prototype.startPoll = function() {
   var xhr = new SockItXHR();
 
   xhr.ondone = function(data) {
-    var connId = (data.substr(0, 7) === 'connId=') ? data.substr(7) : null;
-
     this.readyState = this.CONNECTING; // Start reconnecting
 
     if(data && data.length > 0) {
-      this.connId = connId;
       this.openPoll();
     } else {
       throw new Error('No connection received');
@@ -204,7 +198,7 @@ SockItPoll.prototype.openPoll = function() {
   xhr.ondone = function(strDataArray) {
     this.readyState = this.CONNECTING; // Start reconnecting
 
-    if(strDataArray.substr(0, 7) === 'connId=') {
+    if(strDataArray === 'poll-start') {
       // This is a reconnect message
 
     } else {
