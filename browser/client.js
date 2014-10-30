@@ -131,12 +131,14 @@ var SockItPoll = function(url) {
 };
 
 SockItPoll.prototype.triggerEvent = function(eventName) {
+  console.log('TRIGGER EVENT: on'+eventName);
   if(this['on'+eventName]) {
     var args = Array.prototype.slice.call(arguments, 1);
     this['on'+eventName].apply(this, args);
   }
 };
 
+// @todo imitate the close codes from WebSockets
 SockItPoll.prototype.onopen    = null;
 SockItPoll.prototype.onclose   = null;
 SockItPoll.prototype.onmessage = null;
@@ -204,6 +206,7 @@ SockItPoll.prototype.openPoll = function() {
     } else {
       // console.log('TRIGGER MESSAGE');
       var arrData = JSON.parse(strDataArray);
+console.log(arrData);
       for(var i in arrData) {
         this.triggerEvent('message', { type: 'message', data: arrData[i] });
       }
@@ -293,11 +296,15 @@ SockItPoll.prototype.send = function(msg) {
 var SockIt = function(settings) {
   if(!(this instanceof SockIt)) return new SockIt(url, protocols);
 
+  settings                   = settings          || {};
+
   this.transport             = null;
   this.initialConnectionDone = false;
 
-  this.settings              = settings          || {};
-  this.url                   = this.settings.url || '/sock.it/'; // readonly - should be a full path or break
+  this.url                   = settings.url      || '/sock.it/'; // readonly - should be a full path or break
+  this.URL                   = this.url;
+  this.developmentMode       = settings.dev      || false; // dev mode is just NOT minified
+  this.debugMode             = settings.debug    || false; // debug mode: everything gets printed
 
   this.CONNECTING            = 0;           // const readyState state
   this.OPEN                  = 1;           // const readyState state
@@ -310,29 +317,37 @@ var SockIt = function(settings) {
   this.protocol              = "";          // readonly - should be one of protocols or empty
   this.binaryType            = "blob";      // No binaries for now
 
-  this.setupConf();
-  this.initiateConnection();
+  this._setupConf();
+  this._initiateConnection();
 };
 
-SockIt.prototype.triggerEvent = function(eventName) {
-  if(this['on'+eventName]) {
-    var args = Array.prototype.slice.call(arguments, 1);
-    this['on'+eventName].apply(this, args);
-  }
-};
+// @todo create a proper event system
+// SockIt.prototype.addEventListener||attachEvent = function() {};
+// SockIt.prototype.dispatchEvent = function() {};
+// SockIt.prototype.removeEventListener = function() {};
+// SockIt.prototype.close = function() {};
 
 // @todo This should be implemented in the poll code!
 // Check: http://dev.w3.org/html5/websockets/#dom-websocket-close
 // SockIt.prototype.close = function(code) {
 // //If the method's first argument is present but is neither an integer equal to 1000 nor an integer in the range 3000 to 4999, throw an InvalidAccessError exception and abort these steps.
 // };
-
 SockIt.prototype.onopen    = null;
 SockIt.prototype.onclose   = null;
 SockIt.prototype.onmessage = null;
 SockIt.prototype.onerror   = null;
 
-SockIt.prototype.setupConf = function() {
+// BROWSER <- SERVER This should ONLY be used to trigger events FROM the server TO the browser
+SockIt.prototype._triggerEvent = function(eventName) {
+  console.log('trigger event: '+eventName);
+
+  if(this['on'+eventName]) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    this['on'+eventName].apply(this, args);
+  }
+};
+
+SockIt.prototype._setupConf = function() {
   this.transportType = 'websocket'; // websocket or poll
 
   if(this.url.match(/(http|https|ws|wss):\/\//i)) {
@@ -356,64 +371,62 @@ SockIt.prototype.setupConf = function() {
   }
 };
 
-SockIt.prototype.open =
-SockIt.prototype.initiateConnection = function() {
+// This should ONLY be called by the
+SockIt.prototype._initiateConnection = function() {
+  console.log('on sockit open');
+
   if(this.transportType === 'websocket') {
-    this.openWebSocketConnection(this.url);
+    var url = this.url.replace(/^http/i, 'ws');
+    this.transport = new WebSocket(url);
 
   } else if(this.transportType === 'poll') {
-    this.openPollConnection(this.url);
+    var url = this.url.replace(/^ws/i, 'http');
+    this.transport = new SockItPoll(url);
   }
+
+  this.setupTransportListeners();
 };
 
-SockIt.prototype.openWebSocketConnection = function() {
-  this.transportType = 'websocket';
-  var url = this.url.replace(/^http/i, 'ws');
-  this.transport = new WebSocket(url);
-  this.setupTransportReferences();
-};
-
-SockIt.prototype.openPollConnection = function() {
-  this.transportType = 'poll';
-  var url = this.url.replace(/^ws/i, 'http');
-  this.transport = new SockItPoll(url);
-  this.setupTransportReferences();
-};
 
 // @todo this could be prettier
 SockIt.prototype.send = function(msg) {
+  console.log('send this should be from browserBackend to server (via XHR)');
+  console.log(msg);
   this.transport.send(msg);
 };
 
-SockIt.prototype.setupTransportReferences = function() {
+SockIt.prototype.setupTransportListeners = function() {
   this.transport.onopen = function() {
+  console.log('on transport open');
     this.initialConnectionDone = true;
     this.readyState = this.transport.readyState;
-    this.triggerEvent('open', arguments);
+    this._triggerEvent('open', arguments);
   }.bind(this);
 
   this.transport.onmessage = function() {
+  console.log('on transport message');
     var args = Array.prototype.slice.call(arguments);
     args.unshift('message');
 
     this.readyState = this.transport.readyState;
-    this.triggerEvent.apply(this, args);
+    this._triggerEvent.apply(this, args);
   }.bind(this);
 
   this.transport.onclose = function() {
     if(!this.initialConnectionDone && this.transportType === 'websocket') {
-      this.openPollConnection();
+      this.transportType = 'poll';
+      this._initiateConnection();
 
     } else {
       this.readyState = this.transport.readyState;
-      this.triggerEvent('close', arguments);
+      this._triggerEvent('close', arguments);
     }
 
   }.bind(this);
 
   this.transport.onerror = function() {
     this.readyState = this.transport.readyState;
-    this.triggerEvent('error', arguments);
+    this._triggerEvent('error', arguments);
   }.bind(this);
 };
 

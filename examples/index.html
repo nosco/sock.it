@@ -16,11 +16,11 @@
         console.log('FAR OUT: closed');
         console.log(this.readyState);
         console.log(arguments);
-        console.log('re-opening');
-        setTimeout(function() {
-          sockit.open();
-          console.log('new open');
-        }, 5000);
+        // console.log('re-opening');
+        // setTimeout(function() {
+        //   sockit.open();
+        //   console.log('new open');
+        // }, 5000);
       };
       sockit.onerror = function() {
         console.log('FAR OUT: erred');
@@ -32,6 +32,7 @@
         console.log(this.readyState);
         console.log(arguments);
       };
+      sockit.send('Just a simple request yo');
     </script>
   </head>
 
