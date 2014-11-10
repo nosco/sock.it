@@ -53,11 +53,9 @@ if(cluster.isMaster) {
     console.log(arguments);
   });
 
-
   sockit.on('error', function() {
     console.log('Got the following error (pid: '+process.pid+'):');
     console.log(arguments);
   });
 
 }
-

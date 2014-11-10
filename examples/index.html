@@ -9,7 +9,10 @@
         console.log(this.readyState);
         console.log(arguments);
 
-        sockit.send('a test');
+        // sockit.send('a test message to the server');
+        setInterval(function() {
+          sockit.send('a test message to the server');
+        }, 2000);
 
       };
       sockit.onclose = function() {
@@ -32,7 +35,7 @@
         console.log(this.readyState);
         console.log(arguments);
       };
-      sockit.send('Just a simple request yo');
+      // sockit.send('Just a simple request yo');
     </script>
   </head>
 

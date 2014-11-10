@@ -1,0 +1,16 @@
+<html>
+  <head>
+    <script type="text/javascript" src="/sock.it/client.js"></script>
+    <script type="text/javascript">
+      window.lastMessage = null;
+      var sockit = new SockIt();
+      sockit.onmessage = function(msg) {
+        console.log(msg);
+        window.lastMessage = msg;
+      }
+    </script>
+  </head>
+
+  <body>
+  </body>
+</html>

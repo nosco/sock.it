@@ -3,6 +3,16 @@ var server = require('http').Server(app);
 var sockit = require('../lib/server.js')(server);
 var bodyParser = require('body-parser');
 
+server.on('connection', function() {
+  server.getConnections(function(err, count) {
+    if(err) {
+      debug.sys('getConnections experienced an error');
+    } else {
+      debug.sys('Current active connections: '+count);
+    }
+  });
+});
+
 app.enable('trust proxy');
 app.disable('x-powered-by');
 app.disable('etag');
@@ -21,7 +31,17 @@ app.get('/sock.it/client', function(req, res, next) {
 
 server.listen(8080);
 
-sockit.onmessage = function() {
-  console.log('Got the following message:');
-  console.log(arguments);
-}
+sockit.on('connection', function(conn) {
+  debug.srv('Got a connection!');
+
+  // conn.send('a test message to the browser');
+  setInterval(function() {
+    conn.send('a test message to the browser');
+  }, 2000);
+
+  conn.on('message', function() {
+    debug.srv('Got the following message:');
+    debug.srv(arguments);
+  });
+});
+

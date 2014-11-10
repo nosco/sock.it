@@ -34,11 +34,21 @@
   ],
   "dependencies": {
     "async": "^0.9.0",
+    "debug": "^2.1.0",
     "node-uuid": "^1.4.1",
     "redis": "^0.12.1",
     "ws": "^0.4.32"
   },
+  "devDependencies": {
+    "chai": "~1.7.2",
+    "chromedriver": "^2.10.0-1",
+    "mocha": "~1.12.0",
+    "selenium-webdriver": "^2.43.5",
+    "phantomjs-server": "^1.9.10"
+  },
   "scripts": {
+    "pretest": "sh compile_client.sh",
+    "test": "node_modules/.bin/mocha --reporter spec --timeout 300000 ./test/test_*.js",
     "prestart": "sh compile_client.sh",
     "start": "node examples/server.js"
   },

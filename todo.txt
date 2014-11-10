@@ -1,3 +1,9 @@
+IMPORTANT: IN ORDER TO MAKE THE POLL LOOK LIKE THE WEBSOCKET API, WE NEED TO
+_NOT_ RESEND MESSAGES AFTER PREMATURE DISCONNECTION IT SEEMS - ACCORDING TO
+TESTS, WHAT HAPPENS WHEN A WEBSOCKET BREAKS DOWN, IS THAT IT WILL _NOT_ RESEND
+"LOST" MESSAGES...
+THIS IS AT LEAST WHAT SEEMS TO HAPPEN FROM THE FRONTEND PERSPECTIVE
+
 So what needs to be done?
 
 Should Sock.it try to reconnect, after a lost connection?
@@ -21,6 +27,7 @@ Poll start flow
     maybe we should have a success/error message instead?
 - The accepting Sock.it adds the user to Redis, including a timestamp
     Question: do we really wanna do this? Does it do anything good? Security?
+    Thought: Without, it would just work like websockets, which also has an id
 
 Poll flow
 - A browser asks for poll and has a connId

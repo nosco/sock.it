@@ -119,13 +119,15 @@ SockItXHR.prototype.get = function(url) {
 var SockItPoll = function(url) {
   if(!(this instanceof SockItPoll)) return new SockItPoll();
 
-  this.CONNECTING = 0;           // const readyState state
-  this.OPEN       = 1;           // const readyState state
-  this.CLOSING    = 2;           // const readyState state
-  this.CLOSED     = 3;           // const readyState state
-  this.readyState = this.CLOSED; // readonly
+  this.initialConnectionDone = false;
 
-  this.url        = url.replace(/^ws/i, 'http');
+  this.CONNECTING            = 0;           // const readyState state
+  this.OPEN                  = 1;           // const readyState state
+  this.CLOSING               = 2;           // const readyState state
+  this.CLOSED                = 3;           // const readyState state
+  this.readyState            = this.CLOSED; // readonly
+
+  this.url                   = url.replace(/^ws/i, 'http');
 
   this.startPoll();
 };
@@ -192,12 +194,17 @@ SockItPoll.prototype.openPoll = function() {
   var xhr = new SockItXHR();
 
   xhr.onopen = function() {
-    // console.log('TRIGGER OPEN');
-    this.readyState = this.OPEN; // Start reconnecting
-    this.triggerEvent('open');
+    console.log('TRIGGER OPEN IN POLL');
+    this.readyState = this.OPEN;
+    // @todo Only trigger open, when it's the first open event
+    if(!this.initialConnectionDone) {
+      this.initialConnectionDone = true;
+      this.triggerEvent('open');
+    }
   }.bind(this);
 
   xhr.ondone = function(strDataArray) {
+    console.log('ON DONE IN POLL');
     this.readyState = this.CONNECTING; // Start reconnecting
 
     if(strDataArray === 'poll-start') {
@@ -205,9 +212,12 @@ SockItPoll.prototype.openPoll = function() {
 
     } else {
       // console.log('TRIGGER MESSAGE');
+console.log(strDataArray);
       var arrData = JSON.parse(strDataArray);
 console.log(arrData);
       for(var i in arrData) {
+console.log('TRIGGERING ON MESSAGE WITH:');
+console.log(arrData[i]);
         this.triggerEvent('message', { type: 'message', data: arrData[i] });
       }
     }
@@ -216,8 +226,9 @@ console.log(arrData);
   }.bind(this);
 
   xhr.onclose = function() {
-    // console.log('TRY TO REOPEN');
-    this.readyState = this.CLOSED;
+    console.log('ON CLOSE IN POLL (don\'t announce, if we try to reconnect)');
+    // this.readyState = this.CLOSED;
+    this.readyState = this.CONNECTING;
     this.openPoll();
     // this.triggerEvent('close', arguments);
   }.bind(this);
@@ -234,9 +245,9 @@ SockItPoll.prototype.send = function(msg) {
   xhr.post(url, msg);
 };
 
-// SockItPoll.prototype._sendBlob = function() { };
-// SockItPoll.prototype._sendArrayBuffer = function() { };
-// SockItPoll.prototype._sendArrayBufferView = function() { };
+// SockItPoll.prototype.sendBlob = function() { };
+// SockItPoll.prototype.sendArrayBuffer = function() { };
+// SockItPoll.prototype.sendArrayBufferView = function() { };
 /* Things to consider
  * - How to detect a non correctly closed connection AND recover from it?
  *
@@ -296,26 +307,27 @@ SockItPoll.prototype.send = function(msg) {
 var SockIt = function(settings) {
   if(!(this instanceof SockIt)) return new SockIt(url, protocols);
 
-  settings                   = settings          || {};
+  settings                    = settings       || {};
 
-  this.transport             = null;
-  this.initialConnectionDone = false;
+  this._transport             = null;
+  this._transportType         = 'websocket';
+  this._initialConnectionDone = false;
+  this._developmentMode       = settings.dev   || false; // dev mode is just NOT minified
+  this._debugMode             = settings.debug || false; // debug mode: everything gets printed
 
-  this.url                   = settings.url      || '/sock.it/'; // readonly - should be a full path or break
-  this.URL                   = this.url;
-  this.developmentMode       = settings.dev      || false; // dev mode is just NOT minified
-  this.debugMode             = settings.debug    || false; // debug mode: everything gets printed
+  this.url                    = settings.url   || '/sock.it/'; // readonly - should be a full path or break
+  this.URL                    = this.url;
 
-  this.CONNECTING            = 0;           // const readyState state
-  this.OPEN                  = 1;           // const readyState state
-  this.CLOSING               = 2;           // const readyState state
-  this.CLOSED                = 3;           // const readyState state
-  this.readyState            = this.CLOSED; // readonly
+  this.CONNECTING             = 0;             // const readyState state
+  this.OPEN                   = 1;             // const readyState state
+  this.CLOSING                = 2;             // const readyState state
+  this.CLOSED                 = 3;             // const readyState state
+  this.readyState             = this.CLOSED;   // readonly
 
-  this.bufferedAmount        = 0;           // readonly
-  this.extensions            = "";          // readonly
-  this.protocol              = "";          // readonly - should be one of protocols or empty
-  this.binaryType            = "blob";      // No binaries for now
+  this.bufferedAmount         = 0;             // readonly
+  this.extensions             = "";            // readonly
+  this.protocol               = "";            // readonly - should be one of protocols or empty
+  this.binaryType             = "blob";        // No binaries for now
 
   this._setupConf();
   this._initiateConnection();
@@ -348,8 +360,6 @@ SockIt.prototype._triggerEvent = function(eventName) {
 };
 
 SockIt.prototype._setupConf = function() {
-  this.transportType = 'websocket'; // websocket or poll
-
   if(this.url.match(/(http|https|ws|wss):\/\//i)) {
     this.url = this.url.replace(/^http/i, 'ws');
 
@@ -366,66 +376,72 @@ SockIt.prototype._setupConf = function() {
 
   // There is probably some more things to test for, on the platforms that
   //   claims to have WebSocket, but doesn't...
-  if(!("WebSocket" in window)) {
-    this.transportType = 'poll';
-  }
+  // if(!("WebSocket" in window)) {
+    this._transportType = 'poll';
+  // }
 };
 
 // This should ONLY be called by the
 SockIt.prototype._initiateConnection = function() {
-  console.log('on sockit open');
+  console.log('on sockit open: '+this._transportType);
 
-  if(this.transportType === 'websocket') {
+  if(this._transportType === 'websocket') {
     var url = this.url.replace(/^http/i, 'ws');
-    this.transport = new WebSocket(url);
+    this._transport = new WebSocket(url);
 
-  } else if(this.transportType === 'poll') {
+  } else if(this._transportType === 'poll') {
     var url = this.url.replace(/^ws/i, 'http');
-    this.transport = new SockItPoll(url);
+    this._transport = new SockItPoll(url);
   }
 
-  this.setupTransportListeners();
+  this._setupTransportListeners();
 };
 
 
-// @todo this could be prettier
 SockIt.prototype.send = function(msg) {
   console.log('send this should be from browserBackend to server (via XHR)');
   console.log(msg);
-  this.transport.send(msg);
+  this._transport.send(msg);
 };
 
-SockIt.prototype.setupTransportListeners = function() {
-  this.transport.onopen = function() {
+
+SockIt.prototype._setupTransportListeners = function() {
+  this._transport.onopen = function() {
   console.log('on transport open');
-    this.initialConnectionDone = true;
-    this.readyState = this.transport.readyState;
-    this._triggerEvent('open', arguments);
+    this.readyState = this._transport.readyState;
+    if(!this._initialConnectionDone) {
+      this._initialConnectionDone = true;
+      this._triggerEvent('open', arguments);
+    }
   }.bind(this);
 
-  this.transport.onmessage = function() {
+  this._transport.onmessage = function() {
   console.log('on transport message');
     var args = Array.prototype.slice.call(arguments);
     args.unshift('message');
 
-    this.readyState = this.transport.readyState;
+    this.readyState = this._transport.readyState;
     this._triggerEvent.apply(this, args);
   }.bind(this);
 
-  this.transport.onclose = function() {
-    if(!this.initialConnectionDone && this.transportType === 'websocket') {
-      this.transportType = 'poll';
+  this._transport.onclose = function() {
+    if(!this._initialConnectionDone && this._transportType === 'websocket') {
+      this._transportType = 'poll';
       this._initiateConnection();
 
+    // This should not be necessary, if poll.js does it job properly
+    // } else if(!this._initialConnectionDone) {
+    //   this.readyState = this.CONNECTING;
+
     } else {
-      this.readyState = this.transport.readyState;
+      this.readyState = this._transport.readyState;
       this._triggerEvent('close', arguments);
     }
 
   }.bind(this);
 
-  this.transport.onerror = function() {
-    this.readyState = this.transport.readyState;
+  this._transport.onerror = function() {
+    this.readyState = this._transport.readyState;
     this._triggerEvent('error', arguments);
   }.bind(this);
 };
