@@ -40,22 +40,19 @@ if(cluster.isMaster) {
   server.listen(8080);
 
   sockit.on('connection', function(conn) {
-    console.log('Sock.It opened a connection (pid: '+process.pid+'):');
-  });
+    debug.srv('Got a connection on process pid '+process.pid+'!');
 
-  sockit.on('message', function() {
-    console.log('Got the following message (pid: '+process.pid+'):');
-    console.log(arguments);
-  });
+    // conn.send('a test message to the browser');
+    setInterval(function() {
+      conn.send('a test message to the browser');
+    }, 2000);
 
-  sockit.on('close', function() {
-    console.log('Sock.it closed (pid: '+process.pid+'):');
-    console.log(arguments);
-  });
-
-  sockit.on('error', function() {
-    console.log('Got the following error (pid: '+process.pid+'):');
-    console.log(arguments);
+    conn.on('message', function() {
+      debug.srv('Got the following message on process pid '+process.pid+':');
+      debug.srv(arguments);
+    });
   });
 
 }
+
+
