@@ -5,9 +5,9 @@
       // var sockit = new SockIt('/sock.it/');
       var sockit = new SockIt();
       sockit.onopen = function() {
-        console.log('FAR OUT: opened');
-        console.log(this.readyState);
-        console.log(arguments);
+        sockit.debug.client('Connection opened');
+        sockit.debug.client(arguments);
+        sockit.debug.client('readyState: '+this.readyState);
 
         // sockit.send('a test message to the server');
         setInterval(function() {
@@ -16,9 +16,9 @@
 
       };
       sockit.onclose = function() {
-        console.log('FAR OUT: closed');
-        console.log(this.readyState);
-        console.log(arguments);
+        socket.debug.client('SockIt connection closed');
+        socket.debug.client(arguments);
+        sockit.debug.client('readyState: '+this.readyState);
         // console.log('re-opening');
         // setTimeout(function() {
         //   sockit.open();
@@ -26,14 +26,14 @@
         // }, 5000);
       };
       sockit.onerror = function() {
-        console.log('FAR OUT: erred');
-        console.log(this.readyState);
-        console.log(arguments);
+        sockit.debug.err('SockIt error:');
+        sockit.debug.err(arguments);
+        sockit.debug.err('readyState: '+this.readyState);
       };
       sockit.onmessage = function() {
-        console.log('FAR OUT: message');
-        console.log(this.readyState);
-        console.log(arguments);
+        sockit.debug.msgIn('SockIt message received:');
+        sockit.debug.msgIn(this.readyState);
+        sockit.debug.msgIn(arguments);
       };
       // sockit.send('Just a simple request yo');
     </script>
