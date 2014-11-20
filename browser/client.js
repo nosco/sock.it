@@ -479,14 +479,16 @@ if(!Function.prototype.bind) {
     return fBound;
   };
 }
-var SockItXHR = function() {
+var SockItXHR = function(isPolling) {
   if(!(this instanceof SockItXHR)) return new SockItXHR();
+
+  this.isPolling                      = isPolling || false;
 
   this.httpRequest                    = this.getHttpRequestObject();
   this.httpRequest.onreadystatechange = this._readystatechange.bind(this);
 
   this.readyState                     = this.httpRequest.readyState;
-  this.ttl                            = 25; // Most problems should start at 30 sec earliest
+  this.pollingTTL                     = 25; // Most problems should start at 30 sec earliest
 
   this.UNSENT                         = 0;  // open() has not been called yet.
   this.OPENED                         = 1;  // send() has not been called yet.
@@ -538,9 +540,11 @@ SockItXHR.prototype._readystatechange = function() {
     // Actually connecting as the send hasn't been called yet
     this.triggerEvent('open');
 
-     this.httpRequest.killTimer = setTimeout(function() {
-      this.httpRequest.abort();
-    }.bind(this), (this.ttl * 1000));
+    if(this.isPolling) {
+      this.httpRequest.killTimer = setTimeout(function() {
+        this.httpRequest.abort();
+      }.bind(this), (this.pollingTTL * 1000));
+    }
 
   } else if(this.httpRequest.readyState === this.HEADERS_RECEIVED) {
     // The poll stops already at opened
@@ -554,7 +558,7 @@ SockItXHR.prototype._readystatechange = function() {
     } else {
       // This is probably a crash
       var err = new Error('Connection failed with HTTP code: '+this.httpRequest.status);
-      this.triggerEvent('error', err);
+      this.triggerEvent('error', err, this);
       this.triggerEvent('close');
     }
   }
@@ -564,6 +568,7 @@ SockItXHR.prototype._readystatechange = function() {
 
 SockItXHR.prototype.post = function(url, post) {
   this.url = url;
+  this.post = post; // @todo this is for debug!
   this.httpRequest.open('POST', url, true);
   this.httpRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
   this.httpRequest.send(post);
@@ -650,7 +655,7 @@ SockItPoll.prototype.openPoll = function() {
   this.readyState = this.CONNECTING;
 
   var url = this.url + 'poll';
-  var xhr = new SockItXHR();
+  var xhr = new SockItXHR(true);
 
   xhr.onopen = function() {
     sockit.debug.xhr('Event: open');
@@ -858,9 +863,9 @@ SockIt.prototype._setupConf = function() {
   this.debug.client.color = debug.colors[3];
   this.debug.conn = debug('sockit:connection');
   this.debug.conn.color = debug.colors[2];
-  this.debug.msgIn = debug('sockit:messages in');
+  this.debug.msgIn = debug('sockit:msg-in');
   this.debug.msgIn.color = debug.colors[4];
-  this.debug.msgOut = debug('sockit:messages out');
+  this.debug.msgOut = debug('sockit:msg-out');
   this.debug.msgOut.color = debug.colors[6];
   this.debug.relay = debug('sockit:relay');
   this.debug.relay.color = debug.colors[7];
@@ -885,6 +890,7 @@ SockIt.prototype._initiateConnection = function() {
 SockIt.prototype.send = function(msg) {
   this.debug.msgOut('send this should be from browserBackend to server (via XHR)');
   this.debug.msgOut(msg);
+  if(!msg) console.log('GOT A BROKEN MESSAGE FROM .send');
   this._transport.send(msg);
 };
 
