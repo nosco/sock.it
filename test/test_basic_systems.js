@@ -18,8 +18,8 @@ describe('Testing basic functionality', function() {
 
   before(function(done) {
     browser = new BrowserActions();
-    browser.startServer('chrome').then(done.bind(this, null), done);
-    // browser.startServer('phantom').then(done.bind(this, null), done);
+    // browser.startServer('chrome').then(done.bind(this, null), done);
+    browser.startServer('phantom').then(done.bind(this, null), done);
   });
 
   after(function(done) {
