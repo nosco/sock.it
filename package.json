@@ -38,7 +38,8 @@
     "pretest": "sh compile_client.sh",
     "test": "node_modules/.bin/mocha --reporter spec --timeout 300000 ./test/test_*.js",
     "prestart": "sh compile_client.sh",
-    "start": "node examples/server.js"
+    "start": "node examples/server.js",
+    "install": "sh compile_client.sh"
   },
   "repository": {
     "type": "git",
