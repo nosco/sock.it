@@ -536,14 +536,16 @@ SockItXHR.prototype.onmessage          = null;
 // Going to use this as the event handler - don't want to deal with all kinds
 // of event handling mechanisms used in different browsers
 SockItXHR.prototype._readystatechange = function() {
+  this.readyState = this.httpRequest.readyState;
+
   if(this.httpRequest.readyState === this.OPENED) {
     // Actually connecting as the send hasn't been called yet
     this.triggerEvent('open');
 
     if(this.isPolling) {
-      this.httpRequest.killTimer = setTimeout(function() {
-        this.httpRequest.abort();
-      }.bind(this), (this.pollingTTL * 1000));
+      this.httpRequest.timeout = (this.pollingTTL * 1000);
+    } else {
+      this.httpRequest.timeout = 5000;
     }
 
   } else if(this.httpRequest.readyState === this.HEADERS_RECEIVED) {
@@ -557,6 +559,8 @@ SockItXHR.prototype._readystatechange = function() {
 
     } else {
       // This is probably a crash
+      console.log('GOT AN XHR ERROR ON REQUEST FOR: ' + this.url);
+      console.log(this);
       var err = new Error('Connection failed with HTTP code: '+this.httpRequest.status);
       this.triggerEvent('error', err, this);
       this.triggerEvent('close');
@@ -569,8 +573,25 @@ SockItXHR.prototype._readystatechange = function() {
 SockItXHR.prototype.post = function(url, post) {
   this.url = url;
   this.post = post; // @todo this is for debug!
+
+var apiUrl = '';
+if(post) {
+  apiUrl = JSON.parse(post).url;
+}
+
+console.log(apiUrl);
+
+
   this.httpRequest.open('POST', url, true);
+  // this.httpRequest.open('POST', url + '?apiUrl=' + apiUrl, true);
   this.httpRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  this.httpRequest.setRequestHeader('X-API-URL', apiUrl);
+
+  this.httpRequest.timeout = 30000;
+  this.httpRequest.ontimeout = function() {
+    console.log('Time out!...');
+    console.log(arguments);
+  };
   this.httpRequest.send(post);
 };
 
@@ -832,7 +853,7 @@ SockIt.prototype._triggerEvent = function(eventName) {
 };
 
 SockIt.prototype._setupConf = function() {
-  if(this.url.match(/(http|https|ws|wss):\/\//i)) {
+  if(this.url.match(/^(http|https|ws|wss):\/\//i)) {
     this.url = this.url.replace(/^http/i, 'ws');
 
   } else {
@@ -845,7 +866,7 @@ SockIt.prototype._setupConf = function() {
   }
 
   this.url = this.url.replace(/([^\/])$/i, '$1/');
-
+console.log(this.url);
   // There is probably some more things to test for, on the platforms that
   //   claims to have WebSocket, but doesn't...
   if(!("WebSocket" in window)) {
