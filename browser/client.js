@@ -544,9 +544,13 @@ SockItXHR.prototype._readystatechange = function() {
 
     if(this.isPolling) {
       this.httpRequest.timeout = (this.pollingTTL * 1000);
-    } else {
-      this.httpRequest.timeout = 5000;
     }
+
+    // if(this.isPolling) {
+    //   this.httpRequest.killTimer = setTimeout(function() {
+    //     this.httpRequest.abort();
+    //   }.bind(this), (this.pollingTTL * 1000));
+    // }
 
   } else if(this.httpRequest.readyState === this.HEADERS_RECEIVED) {
     // The poll stops already at opened
