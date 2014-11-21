@@ -1,8 +1,8 @@
 {
   "name": "sock.it",
-  "description": "Sock.it is a thin wrapper around a websocket w. polling fallback",
+  "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.5",
   "keywords": [
     "Sock.it",
     "WebSocket",
@@ -15,21 +15,6 @@
       "name": "Dan Larsen",
       "email": "dan@nos.co",
       "url": "https://github.com/morphar"
-    },
-    {
-      "name": "Benjamin Bernhard",
-      "email": "benjamin@nos.co",
-      "url": "https://github.com/BurtBlancher"
-    },
-    {
-      "name": "Emil Devantie",
-      "email": "emil@nos.co",
-      "url": "https://github.com/Mestika"
-    },
-    {
-      "name": "Elias G. Schneevoigt",
-      "email": "elias@nos.co",
-      "url": "https://github.com/eliasgs"
     }
   ],
   "dependencies": {
