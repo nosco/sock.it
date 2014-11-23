@@ -488,7 +488,8 @@ var SockItXHR = function(isPolling) {
   this.httpRequest.onreadystatechange = this._readystatechange.bind(this);
 
   this.readyState                     = this.httpRequest.readyState;
-  this.pollingTTL                     = 25; // Most problems should start at 30 sec earliest
+
+  this.pollingTTL                     = 5; // Most problems should start at 30 sec earliest
 
   this.UNSENT                         = 0;  // open() has not been called yet.
   this.OPENED                         = 1;  // send() has not been called yet.
@@ -532,6 +533,32 @@ SockItXHR.prototype.ondone             = null;
 SockItXHR.prototype.onerror            = null;
 SockItXHR.prototype.onclose            = null;
 SockItXHR.prototype.onmessage          = null;
+SockItXHR.prototype.ontimeout          = null;
+SockItXHR.prototype.onaborted            = null;
+
+SockItXHR.prototype.stopKillTimer = function() {
+  if(this.killTimer) {
+    clearTimeout(this.killTimer);
+    this.killTimer = null;
+  }
+};
+
+SockItXHR.prototype.startKillTimer = function() {
+  this.stopKillTimer();
+
+  // this.httpRequest.timeout = (this.pollingTTL * 1000);
+
+  this.killTimer = setTimeout(function() {
+    if(this.httpRequest.readyState <= this.OPENED) {
+      this.httpRequest.abort();
+      this.triggerEvent('aborted');
+
+    } else {
+      this.startKillTimer();
+    }
+  }.bind(this), (this.pollingTTL * 1000));
+};
+
 
 // Going to use this as the event handler - don't want to deal with all kinds
 // of event handling mechanisms used in different browsers
@@ -543,23 +570,22 @@ SockItXHR.prototype._readystatechange = function() {
     this.triggerEvent('open');
 
     if(this.isPolling) {
-      this.httpRequest.timeout = (this.pollingTTL * 1000);
+      this.startKillTimer();
     }
 
-    // if(this.isPolling) {
-    //   this.httpRequest.killTimer = setTimeout(function() {
-    //     this.httpRequest.abort();
-    //   }.bind(this), (this.pollingTTL * 1000));
-    // }
-
   } else if(this.httpRequest.readyState === this.HEADERS_RECEIVED) {
+    this.stopKillTimer();
     // The poll stops already at opened
   } else if(this.httpRequest.readyState === this.LOADING) {
+    this.stopKillTimer();
     // The poll stops already at opened
   } else if(this.httpRequest.readyState === this.DONE) {
+    this.stopKillTimer();
+
     if(this.httpRequest.status === 200) {
       this.triggerEvent('message', this.httpRequest.responseText);
       this.triggerEvent('done', this.httpRequest.responseText);
+      this.triggerEvent('close');
 
     } else {
       // This is probably a crash
@@ -574,21 +600,32 @@ SockItXHR.prototype._readystatechange = function() {
 
 SockItXHR.prototype.post = function(url, post) {
   this.url = url;
-  this.post = post; // @todo this is for debug!
+  this.post = post;
   this.httpRequest.open('POST', url, true);
+  this.httpRequest.onerror = function() {
+    console.log('got a post error!!!');
+    console.log(arguments);
+  };
   this.httpRequest.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+  this.httpRequest.setRequestHeader('X-API-URL', url);
   this.httpRequest.send(post);
 };
 
 SockItXHR.prototype.get = function(url) {
   this.url = url;
+  this.httpRequest.setRequestHeader('X-API-URL', url);
   this.httpRequest.open('GET', url, true);
+  this.httpRequest.onerror = function() {
+    console.log('got a get error!!!');
+    console.log(arguments);
+  };
   this.httpRequest.send();
 };
 var SockItPoll = function(url) {
   if(!(this instanceof SockItPoll)) return new SockItPoll();
 
   this.initialConnectionDone = false;
+  this.retryTimeout          = 0;
 
   this.CONNECTING            = 0;           // const readyState state
   this.OPEN                  = 1;           // const readyState state
@@ -599,6 +636,8 @@ var SockItPoll = function(url) {
   this.url                   = url.replace(/^ws/i, 'http');
 
   this.startPoll();
+
+  this.messageQueue = [];
 };
 
 SockItPoll.prototype.triggerEvent = function(eventName) {
@@ -644,8 +683,15 @@ SockItPoll.prototype.startPoll = function() {
 };
 
 SockItPoll.prototype.openPoll = function() {
+  if(!this.retryTimeout) return this._openPoll();
+
+  setTimeout(function() {
+    this._openPoll();
+  }.bind(this), this.retryTimeout);
+};
+
+SockItPoll.prototype._openPoll = function() {
   sockit.debug.conn('Trying to open poll connection');
-    // console.log('openPoll');
 
   // @todo figure out when a connection is properly closed
   //   Maybe we should just decide, that a connection is properly closed, when
@@ -671,20 +717,22 @@ SockItPoll.prototype.openPoll = function() {
     if(!this.initialConnectionDone) {
       this.initialConnectionDone = true;
     }
+
     this.triggerEvent('open');
   }.bind(this);
 
   xhr.ondone = function(strDataArray) {
     sockit.debug.xhr('Event: done');
 
+    this.retryTimeout = 0;
+
     this.readyState = this.CONNECTING; // Start reconnecting
 
     if(strDataArray === 'poll-start') {
       // This is a reconnect message
+      // @todo If this is a response to a poll-msg, then it need to retry
 
     } else {
-      // console.log('TRIGGER MESSAGE');
-
       sockit.debug.xhr('Raw data received');
       sockit.debug.xhr(strDataArray);
 
@@ -698,7 +746,18 @@ SockItPoll.prototype.openPoll = function() {
       }
     }
 
-    this.openPoll();
+  }.bind(this);
+
+  xhr.onaborted = function() {
+    this.retryTimeout = 0;
+  }.bind(this);
+
+  xhr.onerror = function() {
+    if(!this.retryTimeout) this.retryTimeout = 100;
+
+    this.retryTimeout = Math.ceil(this.retryTimeout * 1.5);
+    // Making sure, we don't start waiting forever
+    if(this.retryTimeout > 10000) this.retryTimeout = 10000;
   }.bind(this);
 
   xhr.onclose = function() {
@@ -706,6 +765,7 @@ SockItPoll.prototype.openPoll = function() {
     // this.readyState = this.CLOSED;
     this.readyState = this.CONNECTING;
     this.openPoll();
+
     // this.triggerEvent('close', arguments);
   }.bind(this);
 
@@ -714,14 +774,24 @@ SockItPoll.prototype.openPoll = function() {
 
 SockItPoll.prototype.send = function(msg) {
   // this.readyState = this.CONNECTING;
+  this.messageQueue.push(msg);
 
-  var url = this.url + 'poll-msg';
-  var xhr = new SockItXHR();
+  // Pile up messages
+  setTimeout(this.sendMessages.bind(this), 0);
+};
 
-  sockit.debug.client('Sending message');
-  sockit.debug.client(msg);
+SockItPoll.prototype.sendMessages = function() {
+  if(this.messageQueue.length) {
+    var messages = JSON.stringify(this.messageQueue.splice(0, this.messageQueue.length));
 
-  xhr.post(url, msg);
+    var url = this.url + 'poll-msg';
+    var xhr = new SockItXHR();
+
+    sockit.debug.client('Sending message');
+    sockit.debug.client(messages);
+
+    xhr.post(url, messages);
+  }
 };
 
 // SockItPoll.prototype.sendBlob = function() { };
