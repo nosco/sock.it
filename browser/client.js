@@ -489,7 +489,7 @@ var SockItXHR = function(isPolling) {
 
   this.readyState                     = this.httpRequest.readyState;
 
-  this.pollingTTL                     = 5; // Most problems should start at 30 sec earliest
+  this.pollingTTL                     = 25; // Most problems should start at 30 sec earliest
 
   this.UNSENT                         = 0;  // open() has not been called yet.
   this.OPENED                         = 1;  // send() has not been called yet.
@@ -534,7 +534,7 @@ SockItXHR.prototype.onerror            = null;
 SockItXHR.prototype.onclose            = null;
 SockItXHR.prototype.onmessage          = null;
 SockItXHR.prototype.ontimeout          = null;
-SockItXHR.prototype.onaborted            = null;
+SockItXHR.prototype.onaborted          = null;
 
 SockItXHR.prototype.stopKillTimer = function() {
   if(this.killTimer) {
