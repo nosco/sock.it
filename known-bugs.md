@@ -23,3 +23,4 @@ For a bit more speed, remove debug...
 
 Is there still an issue with closed websockets?..
 
+Minor issues with long idle poll connections, when starting to click around again.
