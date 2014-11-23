@@ -3,7 +3,9 @@
 # Sock It
 
 ### THIS IS A VERY EARLY DEVELOPMENT VERSION!!!
+Don't use in a production environment, it is created and tested for a very specific set of problems!
 
+### What is it?
 An attempt to create a WebSocket API compatible library, that has a thin wrapper
 around WebSockets with a fat polling fallback for legacy browsers.
 
