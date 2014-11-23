@@ -18,6 +18,7 @@ absolutely fastest solution or support ALL possible scenarios.
 * Fallback to JSON poll, when WebSocket is not around
 * Scalable backend code through Redis (both horizontally and vertically)
 * Emphasis on leaving as much to WebSockets as possible, when available
+* Compatibility with IE8+, Safari, Chrome, Firefox
 
 ### What it is NOT meant to solve:
 * Speed (e.g. this is not going to be THE fastest WS/poll library around)
