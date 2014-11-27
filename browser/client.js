@@ -552,6 +552,7 @@ SockItXHR.prototype.startKillTimer = function() {
     if(this.httpRequest.readyState <= this.OPENED) {
       this.httpRequest.abort();
       this.triggerEvent('aborted');
+      console.log('aborted');
 
     } else {
       this.startKillTimer();
@@ -599,6 +600,7 @@ SockItXHR.prototype._readystatechange = function() {
 };
 
 SockItXHR.prototype.post = function(url, post) {
+  this.method = 'POST';
   this.url = url;
   this.post = post;
   this.httpRequest.open('POST', url, true);
@@ -612,6 +614,7 @@ SockItXHR.prototype.post = function(url, post) {
 };
 
 SockItXHR.prototype.get = function(url) {
+  this.method = 'GET';
   this.url = url;
   this.httpRequest.setRequestHeader('X-API-URL', url);
   this.httpRequest.open('GET', url, true);
@@ -626,6 +629,7 @@ var SockItPoll = function(url) {
 
   this.initialConnectionDone = false;
   this.retryTimeout          = 0;
+  this.retryTimer            = null;
 
   this.CONNECTING            = 0;           // const readyState state
   this.OPEN                  = 1;           // const readyState state
@@ -636,6 +640,8 @@ var SockItPoll = function(url) {
   this.url                   = url.replace(/^ws/i, 'http');
 
   this.startPoll();
+
+  this.pollXHR               = null;
 
   this.messageQueue = [];
 };
@@ -663,7 +669,7 @@ SockItPoll.prototype.startPoll = function() {
   var xhr = new SockItXHR();
 
   xhr.ondone = function(data) {
-    this.readyState = this.CONNECTING; // Start reconnecting
+    this.readyState = this.CLOSED; // Start reconnecting
 
     if(data && data.length > 0) {
       this.openPoll();
@@ -683,9 +689,19 @@ SockItPoll.prototype.startPoll = function() {
 };
 
 SockItPoll.prototype.openPoll = function() {
+  if(this.readyState !== this.CLOSED) {
+    return false;
+  }
+
+  this.readyState = this.CONNECTING;
+
   if(!this.retryTimeout) return this._openPoll();
 
-  setTimeout(function() {
+  if(this.retryTimer !== null) {
+    clearTimeout(this.retryTimer);
+  }
+
+  this.retryTimer = setTimeout(function() {
     this._openPoll();
   }.bind(this), this.retryTimeout);
 };
@@ -707,9 +723,9 @@ SockItPoll.prototype._openPoll = function() {
   this.readyState = this.CONNECTING;
 
   var url = this.url + 'poll';
-  var xhr = new SockItXHR(true);
+  this.pollXHR = new SockItXHR(true);
 
-  xhr.onopen = function() {
+  this.pollXHR.onopen = function() {
     sockit.debug.xhr('Event: open');
 
     this.readyState = this.OPEN;
@@ -721,16 +737,15 @@ SockItPoll.prototype._openPoll = function() {
     this.triggerEvent('open');
   }.bind(this);
 
-  xhr.ondone = function(strDataArray) {
+  this.pollXHR.ondone = function(strDataArray) {
     sockit.debug.xhr('Event: done');
 
     this.retryTimeout = 0;
 
-    this.readyState = this.CONNECTING; // Start reconnecting
+    this.readyState = this.CLOSING; // Start reconnecting
 
     if(strDataArray === 'poll-start') {
-      // This is a reconnect message
-      // @todo If this is a response to a poll-msg, then it need to retry
+      // This is a reconnect message - it should retry automatically
 
     } else {
       sockit.debug.xhr('Raw data received');
@@ -748,11 +763,15 @@ SockItPoll.prototype._openPoll = function() {
 
   }.bind(this);
 
-  xhr.onaborted = function() {
+  this.pollXHR.onaborted = function() {
+    this.readyState = this.CLOSING; // Start reconnecting
+
     this.retryTimeout = 0;
   }.bind(this);
 
-  xhr.onerror = function() {
+  this.pollXHR.onerror = function() {
+    this.readyState = this.CLOSED; // Start reconnecting
+
     if(!this.retryTimeout) this.retryTimeout = 100;
 
     this.retryTimeout = Math.ceil(this.retryTimeout * 1.5);
@@ -760,39 +779,61 @@ SockItPoll.prototype._openPoll = function() {
     if(this.retryTimeout > 10000) this.retryTimeout = 10000;
   }.bind(this);
 
-  xhr.onclose = function() {
+  this.pollXHR.onclose = function() {
     sockit.debug.xhr('Event: close');
-    // this.readyState = this.CLOSED;
-    this.readyState = this.CONNECTING;
+    this.readyState = this.CLOSED; // Start reconnecting
     this.openPoll();
-
-    // this.triggerEvent('close', arguments);
   }.bind(this);
 
-  this.connection = xhr.post(url);
+  this.connection = this.pollXHR.post(url);
 };
 
 SockItPoll.prototype.send = function(msg) {
-  // this.readyState = this.CONNECTING;
   this.messageQueue.push(msg);
 
   // Pile up messages
   setTimeout(this.sendMessages.bind(this), 0);
 };
 
+
 SockItPoll.prototype.sendMessages = function() {
   if(this.messageQueue.length) {
-    var messages = JSON.stringify(this.messageQueue.splice(0, this.messageQueue.length));
+
+    var messages = this.messageQueue.splice(0, this.messageQueue.length);
 
     var url = this.url + 'poll-msg';
     var xhr = new SockItXHR();
 
+    xhr.onaborted = function() {
+      this.reSendMessages(messages);
+    }.bind(this);
+
+    xhr.onerror = function() {
+      this.reSendMessages(messages);
+    }.bind(this);
+
+    xhr.ondone = function(strDataArray) {
+      if(strDataArray === 'poll-start') {
+        // This is a reconnect message - put the messages back into the queue
+        this.reSendMessages(messages);
+      }
+    }.bind(this);
+
     sockit.debug.client('Sending message');
     sockit.debug.client(messages);
 
-    xhr.post(url, messages);
+    xhr.post(url, JSON.stringify(messages));
   }
 };
+
+SockItPoll.prototype.reSendMessages = function(messages) {
+  for(var i=messages.length ; i > 0 ; i--) {
+    this.messageQueue.unshift(messages[(i-1)]);
+  }
+  this.pollXHR.httpRequest.abort();
+  this.sendMessages();
+};
+
 
 // SockItPoll.prototype.sendBlob = function() { };
 // SockItPoll.prototype.sendArrayBuffer = function() { };
