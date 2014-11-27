@@ -552,7 +552,6 @@ SockItXHR.prototype.startKillTimer = function() {
     if(this.httpRequest.readyState <= this.OPENED) {
       this.httpRequest.abort();
       this.triggerEvent('aborted');
-      console.log('aborted');
 
     } else {
       this.startKillTimer();
@@ -800,14 +799,11 @@ SockItPoll.prototype.sendMessages = function() {
   if(this.messageQueue.length) {
 
     var messages = this.messageQueue.splice(0, this.messageQueue.length);
-
     var url = this.url + 'poll-msg';
     var xhr = new SockItXHR();
-
     xhr.onaborted = function() {
       this.reSendMessages(messages);
     }.bind(this);
-
     xhr.onerror = function() {
       this.reSendMessages(messages);
     }.bind(this);
