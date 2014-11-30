@@ -9,33 +9,32 @@
         sockit.debug.client(arguments);
         sockit.debug.client('readyState: '+this.readyState);
 
-        // sockit.send('a test message to the server');
-        setInterval(function() {
-          sockit.send('a test message to the server');
-        }, 2000);
-
+        sockit.debug.msgOut('Sending message:');
+        sockit.debug.msgOut('first message to the server');
+        sockit.send('first message to the server');
       };
       sockit.onclose = function() {
         socket.debug.client('SockIt connection closed');
         socket.debug.client(arguments);
         sockit.debug.client('readyState: '+this.readyState);
-        // console.log('re-opening');
-        // setTimeout(function() {
-        //   sockit.open();
-        //   console.log('new open');
-        // }, 5000);
       };
       sockit.onerror = function() {
         sockit.debug.err('SockIt error:');
         sockit.debug.err(arguments);
         sockit.debug.err('readyState: '+this.readyState);
       };
-      sockit.onmessage = function() {
+      sockit.onmessage = function(message) {
         sockit.debug.msgIn('SockIt message received:');
         sockit.debug.msgIn(this.readyState);
-        sockit.debug.msgIn(arguments);
+        sockit.debug.msgIn(JSON.stringify(message));
+
+        setTimeout(function() {
+          sockit.debug.msgOut('Sending a reply:');
+          sockit.debug.msgOut('a test message to the server');
+          sockit.send('a test message to the server');
+        }, 1000);
+
       };
-      // sockit.send('Just a simple request yo');
     </script>
   </head>
 

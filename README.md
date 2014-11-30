@@ -5,6 +5,8 @@
 ### THIS IS A VERY EARLY DEVELOPMENT VERSION!!!
 Don't use in a production environment, it is created and tested for a very specific set of problems!
 
+Also be sure to read the [Known Bugs](known-bugs.md) document.
+
 ### What is it?
 An attempt to create a WebSocket API compatible library, that has a thin wrapper
 around WebSockets with a fat polling fallback for legacy browsers.

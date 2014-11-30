@@ -1,26 +1,25 @@
-# Remaining issues with Sock.it
+### Known issues with Sock.it
 
-### Lost messages
-If pollTTL is brought down to 5, it triggers a rather curious bug.
+HA Proxy and the likes, can trigger a problem, due to connections not being closed correctly in both ends, when one end is closed.
 
-Some messages don't get through - the issue seems to be, that node.js doesn't see the connection as broken and sends the message anyways - nobody knows it's lost!
+For HA Proxy 1.5+ the fix is to use:
 
-Leaving it for now, as this seems to be only triggered by the abort, which is not all to bad, when having TTL of 25.
-It seems to happen, when things happen in this order:
-* Client opens poll connection
-* Server accepts poll connection
-* ~24 seconds go by
-* Server starts to send a big message
-* Client aborts
-* Server doesn't notice
-* Message is lost!
+	option http-server-close
+	option forceclose
+
+At some point, a script may be created that can test the issue, but this is the basics of the problem:
+
+Abort is called on an XMLHTTP connection, this should trigger some events in node.js, which then knows, the connection is no longer.
+
+When the issue is present (i.e. HA Proxy not having about conf), those events isn't triggered, because HA Proxy keeps the server connection alive.
 
 
-When a poll-msg gets a poll-start, it needs to put the message back into the queue.
-This can happen, when the server restarts/dies, then it will get a new connId and a poll-start.
+### Remaining issues with Sock.it
+
+* Server side "connections" doesn't get closed, resulting in each process ending up with a connection over time.
+
+### Other stuff
 
 For a bit more speed, remove debug...
 
 Is there still an issue with closed websockets?..
-
-Minor issues with long idle poll connections, when starting to click around again.

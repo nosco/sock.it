@@ -34,14 +34,16 @@ server.listen(8080);
 sockit.on('connection', function(conn) {
   debug.srv('Got a connection!');
 
-  // conn.send('a test message to the browser');
-  setInterval(function() {
-    conn.send('a test message to the browser');
-  }, 2000);
-
   conn.on('message', function() {
     debug.srv('Got the following message:');
     debug.srv(arguments);
+
+    debug.srv('Replying in 1s');
+    setTimeout(function() {
+      debug.srv('Sending a reply:');
+      debug.srv('a test message to the browser');
+      conn.send('a test message to the browser');
+    }, 1000);
   });
 });
 
