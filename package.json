@@ -1,7 +1,7 @@
 {
   "name": "sock.it",
   "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "keywords": [
     "Sock.it",
     "WebSocket",
@@ -27,7 +27,6 @@
     "body-parser": "^1.9.2",
     "chai": "~1.7.2",
     "chromedriver": "^2.10.0-1",
-    "cookie-tools": "^0.1.1",
     "express": "^4.10.2",
     "mocha": "~1.12.0",
     "selenium-webdriver": "^2.43.5",

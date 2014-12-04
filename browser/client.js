@@ -645,10 +645,11 @@ var SockItPoll = function(url) {
   this.readyState            = this.CLOSED; // readonly
 
   this.url                   = url.replace(/^ws/i, 'http');
-
-  this.startPoll();
+  this.connId                = null;
 
   this.pollXHR               = null;
+
+  this.startPoll();
 
   this.messageQueue = [];
 };
@@ -678,7 +679,10 @@ SockItPoll.prototype.startPoll = function() {
   xhr.ondone = function(data) {
     this.readyState = this.CLOSED; // Start reconnecting
 
-    if(data && data.length > 0) {
+    if(data && data.length && (data.substr(0, 11) === 'poll-start=')) {
+      // This is a reconnect message
+      // Extract the connId and let the rest happen automatically
+      this.connId = data.substr(11);
       this.openPoll();
     } else {
       throw new Error('No connection received');
@@ -729,7 +733,7 @@ SockItPoll.prototype._openPoll = function() {
 
   this.readyState = this.CONNECTING;
 
-  var url = this.url + 'poll';
+  var url = this.url + this.connId + '/poll';
   this.pollXHR = new SockItXHR(true);
 
   this.pollXHR.onopen = function() {
@@ -751,8 +755,10 @@ SockItPoll.prototype._openPoll = function() {
 
     this.readyState = this.CLOSING; // Start reconnecting
 
-    if(strDataArray === 'poll-start') {
-      // This is a reconnect message - it should retry automatically
+    if(strDataArray.substr(0, 11) === 'poll-start=') {
+      // This is a reconnect message
+      // Extract the connId and let the rest happen automatically
+      this.connId = strDataArray.substr(11);
 
     } else {
       sockit.debug.xhr('Raw data received');
@@ -807,7 +813,7 @@ SockItPoll.prototype.sendMessages = function() {
   if(this.messageQueue.length) {
 
     var messages = this.messageQueue.splice(0, this.messageQueue.length);
-    var url = this.url + 'poll-msg';
+    var url = this.url + this.connId + '/poll-msg';
     var xhr = new SockItXHR();
     xhr.onaborted = function() {
       this.reSendMessages(messages);
@@ -817,8 +823,10 @@ SockItPoll.prototype.sendMessages = function() {
     }.bind(this);
 
     xhr.ondone = function(strDataArray) {
-      if(strDataArray === 'poll-start') {
-        // This is a reconnect message - put the messages back into the queue
+      if(strDataArray.substr(0, 11) === 'poll-start=') {
+        // This is a reconnect message
+        // Extract the connId and put the messages back into the queue
+        this.connId = strDataArray.substr(11);
         this.reSendMessages(messages);
       }
     }.bind(this);
