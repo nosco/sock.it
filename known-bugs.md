@@ -16,10 +16,10 @@ When the issue is present (i.e. HA Proxy not having about conf), those events is
 
 ### Remaining issues with Sock.it
 
-* Server side "connections" doesn't get closed, resulting in each process ending up with a connection over time.
+* Create the code for handling binary data
 
 ### Other stuff
 
 For a bit more speed, remove debug...
 
-Is there still an issue with closed websockets?..
+Is there still an issue with trying to send to closed websockets?..
