@@ -644,6 +644,8 @@ var SockItPoll = function(url) {
   this.CLOSED                = 3;           // const readyState state
   this.readyState            = this.CLOSED; // readonly
 
+  this.internalState         = this.CLOSED;
+
   this.url                   = url.replace(/^ws/i, 'http');
   this.connId                = null;
 
@@ -671,13 +673,14 @@ SockItPoll.prototype.onerror   = null;
 // ONLY CALL THE "FINAL" ONCLOSE, WHEN IT IS NOT A "PING/PONG"-ISH RECONNECT
 
 SockItPoll.prototype.startPoll = function() {
-  this.readyState = this.CLOSED;
+  this.readyState = this.CONNECTING;
 
   var url = this.url + 'poll-start';
   var xhr = new SockItXHR();
 
   xhr.ondone = function(data) {
-    this.readyState = this.CLOSED; // Start reconnecting
+    this.readyState = this.OPEN;
+    this.internalState = this.CLOSED;
 
     if(data && data.length && (data.substr(0, 11) === 'poll-start=')) {
       // This is a reconnect message
@@ -690,7 +693,7 @@ SockItPoll.prototype.startPoll = function() {
   }.bind(this);
 
   xhr.onerror = function() {
-    this.readyState = this.CLOSED;
+    this.internalState = this.CLOSED;
     // @todo figure out what is actually send along and what to pass along...
     this.triggerEvent('error', {}, arguments);
     this.triggerEvent('close', {}, arguments);
@@ -700,11 +703,11 @@ SockItPoll.prototype.startPoll = function() {
 };
 
 SockItPoll.prototype.openPoll = function() {
-  if(this.readyState !== this.CLOSED) {
+  if(this.internalState !== this.CLOSED || !this.connId) {
     return false;
   }
 
-  this.readyState = this.CONNECTING;
+  // this.readyState = this.CONNECTING;
 
   if(!this.retryTimeout) return this._openPoll();
 
@@ -731,7 +734,7 @@ SockItPoll.prototype._openPoll = function() {
   // and try to match it...
   // UPDATE: at least make sure, the first argument is an "event" object
 
-  this.readyState = this.CONNECTING;
+  this.internalState = this.CONNECTING;
 
   var url = this.url + this.connId + '/poll';
   this.pollXHR = new SockItXHR(true);
@@ -739,13 +742,13 @@ SockItPoll.prototype._openPoll = function() {
   this.pollXHR.onopen = function() {
     sockit.debug.xhr('Event: open');
 
-    this.readyState = this.OPEN;
+    this.internalState = this.OPEN;
     // @todo Only trigger open, when it's the first open event
     if(!this.initialConnectionDone) {
       this.initialConnectionDone = true;
+      this.triggerEvent('open');
     }
 
-    this.triggerEvent('open');
   }.bind(this);
 
   this.pollXHR.ondone = function(strDataArray) {
@@ -753,7 +756,7 @@ SockItPoll.prototype._openPoll = function() {
 
     this.retryTimeout = 0;
 
-    this.readyState = this.CLOSING; // Start reconnecting
+    this.internalState = this.CLOSED; // Start reconnecting
 
     if(strDataArray.substr(0, 11) === 'poll-start=') {
       // This is a reconnect message
@@ -777,13 +780,13 @@ SockItPoll.prototype._openPoll = function() {
   }.bind(this);
 
   this.pollXHR.onaborted = function() {
-    this.readyState = this.CLOSING; // Start reconnecting
+    this.internalState = this.CLOSED; // Start reconnecting
 
     this.retryTimeout = 0;
   }.bind(this);
 
   this.pollXHR.onerror = function() {
-    this.readyState = this.CLOSED; // Start reconnecting
+    this.internalState = this.CLOSED; // Start reconnecting
 
     if(!this.retryTimeout) this.retryTimeout = 100;
 
@@ -794,7 +797,8 @@ SockItPoll.prototype._openPoll = function() {
 
   this.pollXHR.onclose = function() {
     sockit.debug.xhr('Event: close');
-    this.readyState = this.CLOSED; // Start reconnecting
+    this.internalState = this.CLOSED; // Start reconnecting
+
     this.openPoll();
   }.bind(this);
 
@@ -805,7 +809,7 @@ SockItPoll.prototype.send = function(msg) {
   this.messageQueue.push(msg);
 
   // Pile up messages
-  setTimeout(this.sendMessages.bind(this), 0);
+  setTimeout(this.sendMessages.bind(this), 1);
 };
 
 
@@ -842,7 +846,6 @@ SockItPoll.prototype.reSendMessages = function(messages) {
   for(var i=messages.length ; i > 0 ; i--) {
     this.messageQueue.unshift(messages[(i-1)]);
   }
-  this.pollXHR.httpRequest.abort();
   this.sendMessages();
 };
 
