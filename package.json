@@ -1,7 +1,7 @@
 {
   "name": "sock.it",
   "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "keywords": [
     "Sock.it",
     "WebSocket",
@@ -21,7 +21,7 @@
     "debug": "^2.1.0",
     "node-uuid": "^1.4.1",
     "redis": "^0.12.1",
-    "ws": "^0.4.32"
+    "ws": "^0.6.3"
   },
   "devDependencies": {
     "body-parser": "^1.9.2",
