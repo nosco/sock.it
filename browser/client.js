@@ -809,7 +809,7 @@ SockItPoll.prototype.send = function(msg) {
   this.messageQueue.push(msg);
 
   // Pile up messages
-  setTimeout(this.sendMessages.bind(this), 1);
+  setTimeout(this.sendMessages.bind(this), 25);
 };
 
 
