@@ -1,7 +1,7 @@
 {
   "name": "sock.it",
   "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "keywords": [
     "Sock.it",
     "WebSocket",
@@ -34,11 +34,11 @@
     "phantomjs-server": "^1.9.10"
   },
   "scripts": {
-    "pretest": "sh compile_client.sh; ./node_modules/.bin/uglify -s browser/client.js -o browser/client.min.js",
+    "pretest": "sh compile_client.sh",
     "test": "node_modules/.bin/mocha --reporter spec --timeout 300000 ./test/test_*.js",
-    "prestart": "sh compile_client.sh; ./node_modules/.bin/uglify -s browser/client.js -o browser/client.min.js",
+    "prestart": "sh compile_client.sh",
     "start": "node examples/server.js",
-    "install": "sh compile_client.sh; ./node_modules/.bin/uglify -s browser/client.js -o browser/client.min.js"
+    "install": "sh compile_client.sh"
   },
   "repository": {
     "type": "git",
