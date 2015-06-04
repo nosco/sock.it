@@ -1,7 +1,7 @@
 {
   "name": "sock.it",
   "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "keywords": [
     "Sock.it",
     "WebSocket",
@@ -49,3 +49,4 @@
     "url": "http://github.com/nosco/sock.it/issues"
   }
 }
+
