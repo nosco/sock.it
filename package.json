@@ -1,7 +1,7 @@
 {
   "name": "sock.it",
   "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "keywords": [
     "Sock.it",
     "WebSocket",
