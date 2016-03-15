@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 echo -e "(function() {\n" > browser/client.js;
 cat lib/browser/debug.js >> browser/client.js;
 cat lib/browser/function.bind.js >> browser/client.js;
