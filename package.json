@@ -35,7 +35,7 @@
   "scripts": {
     "pretest": "npm install uglify -g; sh compile_client.sh",
     "test": "node_modules/.bin/mocha --reporter spec --timeout 300000 ./test/test_*.js",
-    "start": "node examples/server.js",
+    "start": "node examples/server.js"
   },
   "repository": {
     "type": "git",
