@@ -1,7 +1,7 @@
 {
   "name": "sock.it",
   "description": "Thin wrapper library for websocket with a fat scalable polling fallback",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "keywords": [
     "Sock.it",
     "WebSocket",
@@ -35,9 +35,7 @@
   "scripts": {
     "pretest": "npm install uglify -g; sh compile_client.sh",
     "test": "node_modules/.bin/mocha --reporter spec --timeout 300000 ./test/test_*.js",
-    "prestart": "npm install uglify -g; sh compile_client.sh",
     "start": "node examples/server.js",
-    "install": "npm install uglify -g; sh compile_client.sh"
   },
   "repository": {
     "type": "git",
